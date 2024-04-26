@@ -60,7 +60,7 @@ data SExpr = SAtom String
   deriving (Show)
 
 data TulaFor = TulaFor {
-  bindings :: [TulaIdentifier],
+  bindings :: [TulaAtom],
   source   :: [TulaIdentifier],
   body     :: [TulaStatement]
 } deriving Show
@@ -254,7 +254,7 @@ parseTapeFile = TulaTape <$> parseTapeBody
 parseFor :: Lexer TulaFor
 parseFor = do
   lexKeyword "for"
-  bindings <- many lexTulaIdentifier
+  bindings <- many lexAtom
   lexKeyword "in"
   source <- many lexTulaIdentifier
   body <- parseBody <|> ((:[]) <$> parseExpression)

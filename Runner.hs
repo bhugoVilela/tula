@@ -6,10 +6,10 @@ import TulaLexer (
   TulaProgram (TulaProgram, getProgramStatements),
   TulaCase (TulaCase, tcaseRead, tcaseWrite, tcaseState, tcaseNewState),
   TulaDirection (..),
-  TulaFor (TulaFor),
+  TulaFor (TulaFor, body),
   TulaSet (TulaSet),
   TulaTape (TulaTape),
-  TulaAtom (TAIdentifier, TALiteral, TASExpr), TulaIdentifier (idName), TulaLiteral (literalName)
+  TulaAtom (TAIdentifier, TALiteral, TASExpr), TulaIdentifier (idName, TIdentifier), TulaLiteral (literalName, TLiteral)
   )
 import Control.Monad.Trans.State (StateT (runStateT), put, State)
 import Control.Monad.Trans.State.Lazy (get)
@@ -22,7 +22,9 @@ import Data.Functor.Identity (Identity(..))
 import GHC.Base (Alternative)
 import Control.Applicative (Alternative(empty), asum, (<|>))
 import Data.List (intercalate, intersperse)
-import Debug.Trace (trace, traceShow)
+import Debug.Trace (trace, traceShow, traceShowId)
+import Control.Monad (join)
+import Data.Foldable (Foldable(toList))
 
 -- Error Messages
 errFailedToMatch = "Failed to match a statement"
@@ -115,10 +117,12 @@ advanceTape dir = do
   lift . put $ state { tapeIdx = newIdx }
 
 evalCase :: TulaCase -> TulaStateM ()
-evalCase (TulaCase expectedState read write dir newState) = do
+evalCase t@(TulaCase expectedState read write dir newState) = do
   currState@(TulaState { state }) <- lift get
   let currCell = currentCell currState
+  -- trace ("tryCase " ++ show t) $ return ()
   guard (atomMatch currCell read && atomMatch state expectedState)
+  -- trace ("match") $ return ()
   updateCell write
   updateState newState
   advanceTape dir
@@ -126,10 +130,13 @@ evalCase (TulaCase expectedState read write dir newState) = do
 evalFor :: TulaFor -> TulaStateM ()
 evalFor (TulaFor fBindings source body) = do
   s@TulaState { bindings } <- lift get
-  let names = idName <$> fBindings
+  -- all possible values from source
   let values = concatMap (lookupBindings bindings) source
-  let combinations = generateCombinations names values
-  asum $ evalWithCombination <$> combinations
+  -- trace ("evalFor " ++ show values) (return ())
+  -- all possible combinations of (binding, value)
+  let combinations = generateCombinations fBindings values
+  let patternMatchedCombinations = map (concatMap (uncurry patternMatch)) combinations
+  asum $ evalWithCombination <$> patternMatchedCombinations
   where
     evalWithCombination :: [ (String, TulaAtom) ] -> TulaStateM ()
     evalWithCombination combination = do
@@ -144,12 +151,12 @@ evalFor (TulaFor fBindings source body) = do
     addToMap entries map = foldl (\m (k,v) -> Map.insert k [v] m) map entries
 
 reduceStatement :: BindingTable -> TulaStatement -> TulaStatement
-reduceStatement bindingTable s@(TStmtFor {}) = trace "REDUCE FOR NOT IMPLEMENTED" s
+reduceStatement bindingTable s@(TStmtFor f@(TulaFor{ body })) = s --TStmtFor $ f{ body = map (reduceStatement bindingTable) body }
 reduceStatement bindingTable s@(TStmtSet {}) = trace "REDUCE SET NOT IMPLEMENTED" s
 reduceStatement bindingTable s@(TStmtCase t@(TulaCase state read write _ newState)) =
-  let new = TStmtCase (t { 
+  let new = TStmtCase (t {
     tcaseState    = replace bindingTable state,
-    tcaseRead     = replace bindingTable read, 
+    tcaseRead     = replace bindingTable read,
     tcaseWrite    = replace bindingTable write,
     tcaseNewState = replace bindingTable newState
     }) in {- trace ("NEW: " ++ show new ++ "\nOLD: " ++ show t) -} new
@@ -174,6 +181,15 @@ evalStatement (TStmtCase tcase) = evalCase tcase
 evalStatement (TStmtSet tset)   = evalSet tset
 evalStatement (TStmtFor tfor)   = evalFor tfor
 evalStatement _ = throwE "eval statement other than TulaCase not implemented"
+
+-- given a pattern and a source returns a map of all mappings
+patternMatch :: TulaAtom -> TulaAtom -> [(String, TulaAtom)]
+patternMatch (TAIdentifier (TIdentifier name _)) b = [(name, b)]
+patternMatch (TALiteral (TLiteral name _)) b      = [(name, b)]
+patternMatch pattern@(TASExpr listA) (TASExpr listB)
+  | length listA == length listB = concatMap (uncurry patternMatch) $ zip listA listB
+  | otherwise = []
+patternMatch _ _ = []
 
 lookupBindings :: BindingTable -> TulaIdentifier -> [TulaAtom]
 lookupBindings map key = fromMaybe [TAIdentifier key] $ Map.lookup (idName key) map

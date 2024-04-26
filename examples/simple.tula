@@ -1,0 +1,13 @@
+tape { & 0 1 0 1 }
+
+let Zero { 0 }
+let One  { 1 }
+
+case Entry & & -> Inc
+
+
+for zero in Zero for one in One {
+	case Inc Zero One -> Inc 
+	case Inc One Zero -> Inc 
+}
+

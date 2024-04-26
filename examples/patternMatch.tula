@@ -1,0 +1,13 @@
+tape { & 0 0 0 1 & }
+
+
+case Start & & -> R
+
+-- let RTable { (0 1) (1 0) }
+-- for (a b) in RTable case R a b -> R
+
+case R 0 1 -> R
+case R 1 0 -> R
+case R & & -> Done
+
+
