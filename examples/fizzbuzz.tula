@@ -1,0 +1,14 @@
+-- FizzBuzz implementation in Tula
+-- TODO pattern matching in `for`
+tape { 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 }
+
+let N3 = { (0 1) (1 2) (2 0) }
+let N5 = { (0 1) (1 2) (2 3) (3 4) (4 0) }
+
+case (0 0) 0 fizzbuzz -> (1 1)				
+for (f3 n3) in N3 case (f3 0) 0 fizz -> (n3 1)
+for (f5 n5) in N5 case (0 f5) 0 buzz -> (1 n5)
+
+for (f3 n3) in N3 for (f5 n5) in N5
+	case (f3 f5) 0 0 -> n3 n5
+

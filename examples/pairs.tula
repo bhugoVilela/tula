@@ -1,0 +1,7 @@
+tape { & (0 1) (2 3) (3 4) & }
+
+let Numbers { 0 1 2 3 4 }
+
+case Entry & & -> Swap
+
+for a b in Numbers case Swap (a b) (b a) -> Swap

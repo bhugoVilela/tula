@@ -1,0 +1,36 @@
+tape { & 0 0 1 1 0 0 & }
+
+let Bits { 0 1 }
+
+case Start & & -> (Match 0)
+case (Match 0) 0 0 -> (Match 0)
+case (Match 0) 1 1 -> (Match 0 1)
+case (Match 0 1) 1 1 -> (Match 0 1)
+case (Match 0 1) 0 0 -> (Match 0 1 0)
+case (Match 0 1 0) 0 0 -> (Match 0 1 0)
+case (Match 0 1 0) & & <- RESET
+
+for a in Bits {
+	case Cut a X -> (Cut a)
+	case (Cut a) a a -> (Cut a)
+}
+case (Cut 0) 1 X -> (Cut 1)
+case (Cut 1) 0 X -> (Cut 0)
+
+case (Cut 0) & & <- RESET
+for a in Bits X case RESET a a <- RESET
+case RESET & & -> Cut
+
+case Cut X X -> Cut
+
+case (Cut 0) X X -> (Expect 1)
+case (Cut 1) X X -> (Expect 0)
+
+case (Expect 1) 0 0 -> FAIL
+case (Expect 0) 1 1 -> FAIL
+
+for a in Bits case (Expect a) a X -> (Cut a)
+for a in Bits case (Expect a) X X -> (Cut a)
+
+case Cut & & <- SUCCESS
+

@@ -1,0 +1,7 @@
+tape { 0 0 1 0 1 & }
+
+let Bits { 0 1 }
+
+for b in Bits case Next b b -> Next
+
+case Next & & <- DONE

@@ -1,0 +1,25 @@
+let Parens { '(' ')' }
+let Bits { 0 1 }
+
+case Start & & -> Pick
+
+case Pick '(' & -> Inc
+case Pick ')' & -> Dec
+case Pick & & -> Validate
+
+for p in Parens & 1 case Inc p p -> Inc
+case Inc 0 1 <- Reset1
+
+for p in Parens & 1 case Dec p p -> Dec
+case Dec 0 0 <- DecB
+case DecB 1 0 <- Reset1
+case DecB & & -> UNBALANCED
+
+for b in Bits case Reset1 b b <- Reset1
+case Reset1 & & <- Reset2
+
+for p in Parens case Reset2 p p <- Reset2
+case Reset2 & & -> Pick
+
+case Validate 0 0 -> BALANCED
+case Validate 1 1 -> UNBALANCED
