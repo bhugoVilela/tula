@@ -1,4 +1,4 @@
-module Runner (runProgram, scanProgram, scanLive, TulaProgram, fromTulaProgram, TulaState(..) ) where
+module Runner (runProgram, scanProgram, scanLive, TulaProgram, fromTulaProgram, TulaState(..), runEvalOnce) where
 
 import qualified Data.Map as Map
 import TulaLexer (
@@ -12,8 +12,8 @@ import TulaLexer (
   TulaAtom (TAIdentifier, TALiteral, TASExpr), TulaIdentifier (idName, TIdentifier), TulaLiteral (literalName, TLiteral)
   )
 import Control.Monad.Trans.State (StateT (runStateT), put, State)
-import Control.Monad.Trans.State.Lazy (get)
-import Control.Monad (guard, when, unless, liftM, replicateM)
+import Control.Monad.Trans.State.Lazy (get, modify)
+import Control.Monad ( guard, when, unless, liftM, replicateM, join )
 import Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import Control.Exception (try)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE, catchE)
@@ -23,7 +23,6 @@ import GHC.Base (Alternative)
 import Control.Applicative (Alternative(empty), asum, (<|>))
 import Data.List (intercalate, intersperse)
 import Debug.Trace (trace, traceShow, traceShowId)
-import Control.Monad (join)
 import Data.Foldable (Foldable(toList))
 
 -- Error Messages
@@ -35,20 +34,22 @@ tryE m = catchE (liftM Right m) (return . Left)
 type BindingTable = Map.Map String [TulaAtom]
 
 data TulaState = TulaState {
-  state      :: TulaAtom,
-  tape       :: [TulaAtom],
-  tapeIdx    :: Int,
-  bindings   :: BindingTable,
-  statements :: [TulaStatement]
+  state        :: TulaAtom,
+  tape         :: [TulaAtom],
+  tapeIdx      :: Int,
+  bindings     :: BindingTable,
+  statements   :: [TulaStatement],
+  matchingState :: Maybe (TulaCase, TulaState)
 }
 
 fromTulaProgram :: TulaProgram -> TulaState
 fromTulaProgram prog@(TulaProgram tape statements) = TulaState {
-  state = getInitialState prog,
-  tape = tape',
-  tapeIdx = 0,
-  bindings = Map.empty,
-  statements = statements
+  state        = getInitialState prog,
+  tape         = tape',
+  tapeIdx      = 0,
+  bindings     = Map.empty,
+  statements   = statements,
+  matchingState = Nothing
 }
   where
     getInitialState :: TulaProgram -> TulaAtom
@@ -117,7 +118,7 @@ advanceTape dir = do
   lift . put $ state { tapeIdx = newIdx }
 
 evalCase :: TulaCase -> TulaStateM ()
-evalCase t@(TulaCase expectedState read write dir newState) = do
+evalCase t@(TulaCase expectedState read write dir newState flags) = do
   currState@(TulaState { state }) <- lift get
   let currCell = currentCell currState
   -- trace ("tryCase " ++ show t) $ return ()
@@ -126,6 +127,7 @@ evalCase t@(TulaCase expectedState read write dir newState) = do
   updateCell write
   updateState newState
   advanceTape dir
+  lift . modify $ \s -> s{ matchingState = Just (t, currState) }
 
 evalFor :: TulaFor -> TulaStateM ()
 evalFor (TulaFor fBindings source body) = do
@@ -153,7 +155,7 @@ evalFor (TulaFor fBindings source body) = do
 reduceStatement :: BindingTable -> TulaStatement -> TulaStatement
 reduceStatement bindingTable s@(TStmtFor f@(TulaFor{ body })) = s --TStmtFor $ f{ body = map (reduceStatement bindingTable) body }
 reduceStatement bindingTable s@(TStmtSet {}) = trace "REDUCE SET NOT IMPLEMENTED" s
-reduceStatement bindingTable s@(TStmtCase t@(TulaCase state read write _ newState)) =
+reduceStatement bindingTable s@(TStmtCase t@(TulaCase state read write _ newState _)) =
   let new = TStmtCase (t {
     tcaseState    = replace bindingTable state,
     tcaseRead     = replace bindingTable read,

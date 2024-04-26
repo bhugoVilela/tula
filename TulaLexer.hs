@@ -1,4 +1,4 @@
-module TulaLexer (TulaTape(..), parseProgram, TulaProgram(..), TulaStatement(..), TulaCase(..), lexToken, emptyState, TulaDirection(TRight, TLeft), LexState(..), parseCase, TulaFor(..), TulaSet(..), statementIsExpression, runParser, runLexer, TulaAtom(..), lexTulaIdentifier, lexTulaLiteral, lexAtom, Lexer, TulaIdentifier(..), TulaLiteral(..), parseTapeDeclaration, parseTapeFile) where
+module TulaLexer (TulaTape(..), parseProgram, TulaProgram(..), TulaStatement(..), TulaCase(..), lexToken, emptyState, TulaDirection(TRight, TLeft), LexState(..), parseCase, TulaFor(..), TulaSet(..), statementIsExpression, runParser, runLexer, TulaAtom(..), lexTulaIdentifier, lexTulaLiteral, lexAtom, Lexer, TulaIdentifier(..), TulaLiteral(..), parseTapeDeclaration, parseTapeFile, parseInterpreterFlags) where
 
 import Data.Char (isSpace)
 import Control.Monad.Trans.State (StateT (runStateT), modify, state, get, execState, execStateT, put)
@@ -8,9 +8,11 @@ import GHC.Base (Alternative(some))
 import System.Environment (getArgs)
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import System.IO (openFile, IOMode (ReadMode))
+import Data.Maybe (fromMaybe)
+import GHC.Utils.Trace (trace)
 -- State read write -> State
 
-specialChars = [ '{', '}', '(', ')' ]
+specialChars = [ '{', '}', '(', ')', '[', ']' ]
 specialKeywords = [ "case", "in", "let", "for" ]
 
 type Row = Int
@@ -39,16 +41,19 @@ instance Show TulaAtom where
   show (TALiteral t)    = show t
   show (TASExpr list)   = "(" ++ unwords (map show list) ++ ")"
 
+type InterpreterFlags = [TulaAtom]
+
 data TulaCase = TulaCase {
   tcaseState    :: TulaAtom,
   tcaseRead     :: TulaAtom,
   tcaseWrite    :: TulaAtom,
   tcaseDir      :: TulaDirection,
-  tcaseNewState :: TulaAtom
+  tcaseNewState :: TulaAtom,
+  tcaseFlags    :: InterpreterFlags
 }
 
 instance Show TulaCase where
-  show (TulaCase state read write dir newState) = unwords [show state, show read, show write, show dir, show newState]
+  show (TulaCase state read write dir newState flags) = unwords [show state, show read, show write, show dir, show newState, show flags]
 
 data TulaSet = TulaSet {
   getName :: String,
@@ -201,6 +206,15 @@ lexKeyword str = do
   ws1 <|> lexEOF
   return (token, lexRow s, lexCol s - length token)
 
+parseInterpreterFlags :: Lexer InterpreterFlags
+parseInterpreterFlags = do
+  ws
+  lexChar '['
+  atoms <- many lexAtom
+  lexChar ']'
+  ws
+  return atoms
+
 parseCase :: Lexer TulaCase
 parseCase = do
   caseKeyword <- lexKeyword "case"
@@ -209,8 +223,9 @@ parseCase = do
   write       <- lexAtom
   direction   <- lexKeyword "->" <|> lexKeyword "<-"
   newState    <- lexAtom
+  flags       <- optional parseInterpreterFlags
   let (Just dir) = directionFromStr $ fst3 direction
-  return $ TulaCase state read write dir newState
+  return $ TulaCase state read write dir newState (fromMaybe [] flags)
   where
     directionFromStr str = case str of
       "->" -> Just TRight

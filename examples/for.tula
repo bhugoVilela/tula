@@ -1,5 +1,13 @@
-tape { 0 0 1 0 1 & }
+tape { & 0 0 1 0 1 & }
+let Bits { 0 1 }
+let Amp { & }
 
-case Next 1 1 -> Next
-case Next 0 0 -> Next
-case Next & & <- DONE
+case Next & & -> Next
+
+for b in Bits {
+	case Next b b -> Next
+	case Next b b -> Next
+}
+
+for n in Amp case Next n n <- DONE
+

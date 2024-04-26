@@ -1,16 +1,18 @@
 module Main where
-import TulaLexer (TulaTape(TulaTape), runParser, LexState (lexRest), getProgramTape, TulaProgram (..), TulaStatement(TStmtCase), TulaCase (..), runLexer, parseTapeFile, TulaAtom)
+import TulaLexer (TulaTape(TulaTape), runParser, LexState (lexRest), getProgramTape, TulaProgram (..), TulaStatement(TStmtCase), TulaCase (..), runLexer, parseTapeFile, TulaAtom(..), TulaIdentifier (..), TulaLiteral (TLiteral))
 import Control.Exception (IOException, throw, throwIO)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import System.Environment (getArgs)
 import Control.Monad (unless, when)
 import System.Exit (exitWith)
 import Data.Maybe (isJust, mapMaybe, fromMaybe, isNothing)
-import Runner (fromTulaProgram, TulaState (tape), scanLive, runProgram, scanProgram)
+import Runner (fromTulaProgram, TulaState (..), scanLive, runProgram, scanProgram, runEvalOnce)
 import GHC.IO (catch)
 import Debug.Trace (trace)
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
+import Data.Map qualified as Map
+import qualified Data.Map.Lazy as Map
 
 
 main = do
@@ -43,7 +45,7 @@ main = do
 
   case mode of
     Interactive -> scanLive initialState
-    Run         -> putStrLn "Run Not implemented yet" >> exitWith (ExitFailure 1)
+    Run         -> run initialState
     Trace       -> scanProgram initialState
 
   where
@@ -52,6 +54,47 @@ main = do
       Just str <- safeReadFile path
       return $ runLexer parseTapeFile str <&> fst
     safeReadFile path = (Just <$> readFile path) `catch` ((\e -> pure Nothing) :: IOException -> IO (Maybe String))
+    run :: TulaState -> IO ()
+    run initialState = do
+      let (res, newState) = runEvalOnce initialState
+      runInterpreterFlags newState
+      case res of
+        Right _ -> run newState
+        Left _ -> return ()
+
+runInterpreterFlags :: TulaState -> IO ()
+runInterpreterFlags state = do
+  let Just (tcase, tstate) = matchingState state
+  runMatchingCaseFlags tcase tstate state
+
+runMatchingCaseFlags :: TulaCase -> TulaState -> TulaState -> IO()
+runMatchingCaseFlags tcase prevState newState = do
+  let flags = tcaseFlags tcase
+  let Just runFlags = (sequence $ map (runInterpreterFlag prevState newState tcase) flags) >>= \x -> return (sequence x)
+  runFlags
+  return ()
+
+runInterpreterFlag :: TulaState -> TulaState -> TulaCase -> TulaAtom -> Maybe (IO String)
+runInterpreterFlag prevState newState tcase (TASExpr [])     = Nothing
+runInterpreterFlag prevState newState tcase (TASExpr (op:xs)) = case op of
+    TAIdentifier (TIdentifier "print" _) -> Just $ do
+      let a = map (runInterpreterFlag prevState newState tcase) xs
+      let (Just getStr) = sequence a >>= \x -> return (sequence x)
+      str <- unwords <$> getStr
+      putStrLn str
+      return str
+runInterpreterFlag prevState newState tcase (TAIdentifier t@(TIdentifier name _)) = return <$> value
+    where
+      maybeBinding = show <$> Map.lookup name (bindings prevState)
+      value = case name of
+        "$tape" -> Just $ unwords . map show $ tape prevState
+        "$new_tape" -> Just $ unwords . map show $ tape newState
+        "$cell" -> Just $ show $ tape prevState !! tapeIdx prevState
+        "$new_cell" -> Just $ show $ tape newState !! tapeIdx newState
+        "$case" -> Just $ show tcase
+        _      ->  maybeBinding <|> Just (show t)
+runInterpreterFlag prevState newState tcase (TALiteral t@(TLiteral name _)) = return . return $ name
+
 
 getInitialState :: TulaProgram -> TulaAtom
 getInitialState = tcaseState . head . mapMaybe getCase . getProgramStatements
