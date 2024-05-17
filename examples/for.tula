@@ -6,7 +6,6 @@ case Next & & -> Next
 
 for b in Bits {
 	case Next b b -> Next
-	case Next b b -> Next
 }
 
 for n in Amp case Next n n <- DONE

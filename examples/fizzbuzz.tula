@@ -1,5 +1,5 @@
 -- FizzBuzz implementation in Tula
-tape { & 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 & }
+tape { & 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 & & }
 
 let Numbers { 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 }
 let N3 { (0 1) (1 2) (2 0) }
@@ -14,5 +14,7 @@ for n in Numbers {
 	for (f3 n3) in N3 for (f5 n5) in N5 case (f3 f5) n n -> (n3 n5) -- else 
 }
 
-for n in Numbers for (f3 _) in N3 for (f5 _) in N5 case (f3 f5) & & -> HALT
+for (f3 a) in N3 for (f5 b) in N5 {
+	case (f3 f5) & & -> HALT [ (print 'Done' $tape)]
+}
 

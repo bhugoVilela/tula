@@ -1,0 +1,48 @@
+tape {
+	& . . . . . . . . . . |
+	  . . . . . . . . . . |
+	  . . . # # # . . . . |
+	  . . . # * # . . . . |
+	  . . . . . . . . . . |
+	  . . . . . . . . . . |
+	  . . . . . . . . . . |
+	  . . . . . . . . . . |
+	  . . . . . . . . . . &
+}
+
+let 0-10 { (0 1) (1 2) (2 3) (3 4) (4 5) (5 6) (6 7) (7 8) (8 9) (9 10) (10 11) (11 12) (12 13) }
+let 10-0 { (13 12) (12 11) (11 10) (10 9) (9 8) (8 7) (7 6) (6 5) (5 4) (4 3) (3 2) (2 1) (1 0) }
+let n    { 0 1 2 3 4 5 6 7 8 9 10 }
+let Chars { . | * # }
+
+
+case Entry & & -> (Lookup 0 0)
+
+for (a a+1) (b b+1) in 0-10 {
+	case (Lookup a b) | | -> (Lookup 0 b+1) [(print 'here')]
+	case (Lookup a b) . . -> (Lookup a+1 b) [(print a b)]
+	case (Lookup a b) # # -> (Lookup a+1 b) [(print a b)]
+	case (Lookup a b) * * -> (Count a b 0)  [(print match a b)]
+}
+
+for (a a+1) (b b+1) in 0-10 for char in Chars
+	case (Count a b 0) char char <- (Count a b 0 (goTopLeft 12))
+
+for (a a+1) (b b+1) (c c+1) in 0-10 {
+	case (Count a b c (goTopLeft 0)) # # -> (Count a b c+1 goTopMid)
+	case (Count a b c (goTopLeft 0)) . . -> (Count a b c goTopMid)
+	case (Count a b c goTopMid) # # -> (Count a b c+1 goTopRight)
+	case (Count a b c goTopMid) . . -> (Count a b c goTopRight)
+	case (Count a b c goTopRight) # # -> (Count a b c+1 (goMidLeft 8)) [(print TOTAL c)]
+	case (Count a b c goTopRight) . . -> (Count a b c (goMidLeft 8)) [(print TOTAL c)]
+	case (Count a b c (goMidLeft 0)) # # ->  (Count a b c+1 (goMidRight 1))
+	case (Count a b c (goMidLeft 0)) . . ->  (Count a b c (goMidRight 1))
+	for char in Chars case (Count a b c (goMidRight 1)) char char -> (Count a b c (goMidRight 0))
+	case (Count a b c (goMidRight 0)) # # -> HALT [print count is c]
+	case (Count a b c (goMidRight 0)) # . -> HALT [print count is c]
+}
+
+for (a a+1) (b b+1) (c c+1) (d d+1) in 0-10 for char in Chars
+	case (Count a b c (goTopLeft d+1)) char char <- (Count a b c (goTopLeft d))
+	case (Count a b c (goMidLeft d+1)) char char -> (Count a b c (goMidLeft d))
+

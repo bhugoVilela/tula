@@ -1,0 +1,40 @@
+let Pairs { (0 1) (1 2) (2 3) }
+
+for (a b) in Pairs
+	case (S b) a b -> S
+	-- bound: a, b
+	-- free: none
+
+for (a b) in Pair -- typeinstance c
+	case S a b -> S
+	-- bound: a from c
+	-- free: b from c
+	-- if a == 0
+	-- c: (0 )
+
+--1. b is free 
+--	where does it come from ? C
+--2. resolve type C = (a b)
+-- a = 1 so let's pattern find a match for C in Pairs
+-- C' = (1 b) -> C = (1 2)
+--3. type C is resolve let's pattern match b again
+
+for (a b) in Pair -- typeinstance c
+	case (S b) a b -> S
+	-- bound: a (from C) b (from C)
+	-- say a == 0 & b == 1
+	-- let's create a c instance (a, b)
+	-- does it belong to C
+	-- YES
+
+-- 1. resolve all typeinstances
+--	create a typeinstance and assign it the bound values
+-- 2. are there free values?
+-- THEN
+--	look for a suitable match in the type
+--	and replace it in the typeinstance
+--	apply the newly bound variables
+-- ELSE
+--	check if the typeinstance belongs to the type
+
+

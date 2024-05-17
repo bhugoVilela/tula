@@ -6,6 +6,8 @@ This is an Haskell Implementation of Tula from **the great Tsoding**. See the or
 This is Tsoding's idea and all Credit goes to him.
 Except for the implementation in Haskell which is mine.
 
+![Rule 110](images/110.png)
+
 ## Examples
 See all examples in the `examples/` folder
 
@@ -133,5 +135,57 @@ for * in Numbers {
 This implementation uses the sets N3 and N5 that represent all Possible combinations of `(n % 3, (n + 1) % 3)` 
 and `(n % 5, (n + 1) % 5)` respectively. And uses pattern matching to extract values from within.
 
+
+## Running a Tula program
+```
+tula {run | debug | interactive} path/to/file.tula path/to/tape.tula
+or
+tula {run | debug | interactive} path/to/tula
+notice the second form doesn't require an extension
+```
+The first argument is the mode which can be one of:
+
+### Trace
+Runs the program and prints each step
+
+### Debug
+Like trace but requires `<Enter>` to be pressed between evaluations
+
+### Run
+Runs the tape without printing anything.
+See the `Interpreter Flags` section below to understand how you
+can interact with the program in `run` mode
+
+## Interpreter Flags
+Interpreter flags are lisp expression that are passed to the interpreter for runtime evaluation.
+They don't affect the Turing Machine in anyway and are used for inspection and debug.
+
+example:
+```hs
+-- Syntax case ...case_args... [ S-expression0 S-expression1 ... ]
+-- ie.
+case Reset & & -> Inc [ (print 'did reset') (print 'tape is' $new_tape)]
+
+case (0 0) n n -> (1 1) [
+    (print fizzbuzz)
+    (print 'cell:' $cell)
+    (print 'state:' $state)
+    (print 'tape:' $tape)
+]
+
+case Test a b -> Start [ (Breakpoint (eq a 10)) ]
+```
+
+They are only handled when the interpreter runs in `Run` mode
+
+Check [Rule 110 example](examples/110.tula) to see how it's used to print each line
+
+
+## Tooling
+Tula is a work in progress, so far apart from the interpreter that provides 
+debugging functionality there's also a tula syntax file for vim. I'll make it available as soon
+as the language is finalized
+
+![Implementation of fizzbuzz in tula in neovim](images/fizzbuzz.png)
 
 

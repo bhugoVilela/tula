@@ -1,4 +1,4 @@
-module Runner (runProgram, scanProgram, scanLive, TulaProgram, fromTulaProgram, TulaState(..), runEvalOnce) where
+module Runner (runProgram, scanProgram, scanLive, TulaProgram, fromTulaProgram, TulaState(..), runEvalOnce, expandProgram, atomMatch) where
 
 import qualified Data.Map as Map
 import TulaLexer (
@@ -9,7 +9,7 @@ import TulaLexer (
   TulaFor (TulaFor, body),
   TulaSet (TulaSet),
   TulaTape (TulaTape),
-  TulaAtom (TAIdentifier, TALiteral, TASExpr), TulaIdentifier (idName, TIdentifier), TulaLiteral (literalName, TLiteral)
+  TulaAtom (TAIdentifier, TALiteral, TASExpr), TulaIdentifier (idName, TIdentifier), TulaLiteral (literalName, TLiteral), runLexer, lexAtom, parseCase
   )
 import Control.Monad.Trans.State (StateT (runStateT), put, State)
 import Control.Monad.Trans.State.Lazy (get, modify)
@@ -21,7 +21,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Functor.Identity (Identity(..))
 import GHC.Base (Alternative)
 import Control.Applicative (Alternative(empty), asum, (<|>))
-import Data.List (intercalate, intersperse)
+import Data.List (intercalate, intersperse, partition)
 import Debug.Trace (trace, traceShow, traceShowId)
 import Data.Foldable (Foldable(toList))
 
@@ -127,7 +127,7 @@ evalCase t@(TulaCase expectedState read write dir newState flags) = do
   updateCell write
   updateState newState
   advanceTape dir
-  lift . modify $ \s -> s{ matchingState = Just (t, currState) }
+  lift . modify $ \s -> s{ matchingState = Just (t, currState{ matchingState = Nothing}) }
 
 evalFor :: TulaFor -> TulaStateM ()
 evalFor (TulaFor fBindings source body) = do
@@ -253,3 +253,60 @@ scanProgram initialState = do
     Left _  -> putStrLn "DONE"
 
 runEvalOnce = runIdentity . runStateT (runExceptT evalOnce)
+
+expandProgram :: TulaStateM [TulaStatement]
+expandProgram = do
+  traceShow "here" (return ())
+  table <- getBindingTable
+  traceShow "here" (return ())
+  s@TulaState { statements } <- lift get
+  traceShow "here" (return ())
+  return $ concatMap (expandCases table) statements
+  where
+    getBindingTable :: TulaStateM BindingTable
+    getBindingTable = do
+      TulaState{ statements } <- lift get
+      let sets = filter isSetStatement statements
+      trace "heyo" (return ())
+      (asum $ evalStatement <$> sets) `catchE` (\_ -> return ())
+      trace "heyo" (return ())
+      TulaState{ bindings } <- lift get
+      return bindings
+    isSetStatement :: TulaStatement -> Bool
+    isSetStatement (TStmtSet _) = True
+    isSetStatement _            = False
+
+expandCases :: BindingTable -> TulaStatement -> [TulaStatement]
+expandCases bindings t@(TStmtCase _) = [t]
+expandCases bindings t@(TStmtSet _) = [t]
+expandCases bindings (TStmtFor (TulaFor fBindings source body)) = newStatements
+  where
+    values = concatMap (lookupBindings bindings) source
+    combinations = {- traceShowId $  -}generateCombinations fBindings values
+    patternMatchedCombinations = map (concatMap (uncurry patternMatch)) combinations
+    newMaps = fmap (`addToMap` bindings)  patternMatchedCombinations
+    newStatements = concatMap makeNewStatements newMaps
+    addToMap :: [(String, TulaAtom)] -> BindingTable -> BindingTable
+    addToMap entries map = foldl (\m (k,v) -> Map.insert k [v] m) map entries
+    makeNewStatements b = concatMap (expandCases b . reduceStatement b) body
+    -- expandForOnly b t@(TStmtFor _) = expandCases b t
+    -- expandForOnly b t@(TStmtCase _) = []
+    -- expandForOnly t@(TStmtSet _) = []
+
+
+
+-- Type Checking
+
+types = Map.insert "Pairs" (fromMaybe [] $ sequence [
+  fst <$> runLexer lexAtom "(0 1)",
+  fst <$> runLexer lexAtom "(1 2)",
+  fst <$> runLexer lexAtom "(2 3)"
+  ]) Map.empty
+
+typeInstances = Map.insert "c" "Pairs"
+
+typebindings = [ ( TASExpr [ (TAIdentifier (TIdentifier "a" ("", 0, 0))), (TAIdentifier (TIdentifier "b" ("", 0, 0)))], "c") ]
+
+testCase = fst <$> runLexer parseCase "case (a b) a b -> S"
+
+

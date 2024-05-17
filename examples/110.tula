@@ -1,4 +1,4 @@
-tape { & . . . . . . . . . . . . . . . . . . . . . . . . . . . # . & }
+tape { & . . . . . . . . . . . . . . . . . . . . . . . . . . # . & }
 
 let Bits { . # }
 let Replacements { 
@@ -17,17 +17,16 @@ case Entry & & -> I
 -- advance 3 cells accumulating state and then back one
 for a     in Bits case I a a       -> (R a)
 for a b   in Bits case (R a) b b   -> (R a b)
-for a b c in Bits case (R a b) & & <- Reset
-for a b c in Bits case (R a b) & & <- Reset
 for a b c in Bits case (R a b) c c <- (W a b c) 
 
-for a in Bits case Reset a a <- Reset
-case Reset & & -> I [
-	( print $new_tape )
-]
-
-
 -- Modify middle cell depending on state 
-for (a b c r) in Replacements {
+for (a b c r) in Replacements
 	case (W a b c) b r -> (R c)
-}
+
+-- Reset when end of tape is reached
+for a b in Bits case (R a b) & & <- Reset
+for a in     Bits case Reset a a <- Reset
+
+-- Start over after reset and print
+case Reset & & -> I [ ( print $new_tape ) ]
+

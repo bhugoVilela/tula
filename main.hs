@@ -1,18 +1,21 @@
 module Main where
-import TulaLexer (TulaTape(TulaTape), runParser, LexState (lexRest), getProgramTape, TulaProgram (..), TulaStatement(TStmtCase), TulaCase (..), runLexer, parseTapeFile, TulaAtom(..), TulaIdentifier (..), TulaLiteral (TLiteral))
+import TulaLexer (TulaTape(TulaTape), runParser, LexState (lexRest), getProgramTape, TulaProgram (..), TulaStatement(TStmtCase), TulaCase (..), runLexer, parseTapeFile, TulaAtom(..), TulaIdentifier (..), TulaLiteral (TLiteral), ShowSource (showSource))
 import Control.Exception (IOException, throw, throwIO)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import System.Environment (getArgs)
 import Control.Monad (unless, when)
 import System.Exit (exitWith)
 import Data.Maybe (isJust, mapMaybe, fromMaybe, isNothing)
-import Runner (fromTulaProgram, TulaState (..), scanLive, runProgram, scanProgram, runEvalOnce)
+import Runner (fromTulaProgram, TulaState (..), scanLive, runProgram, scanProgram, runEvalOnce, expandProgram)
 import GHC.IO (catch)
 import Debug.Trace (trace)
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
 import Data.Map qualified as Map
 import qualified Data.Map.Lazy as Map
+import Control.Monad.Trans.State (StateT(runStateT))
+import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.State.Lazy (runState)
 
 
 main = do
@@ -47,6 +50,7 @@ main = do
     Interactive -> scanLive initialState
     Run         -> run initialState
     Trace       -> scanProgram initialState
+    Expand      -> putStrLn . unlines $ (showSource <$> expand initialState)
 
   where
     readTape :: String -> IO (Maybe TulaTape)
@@ -106,7 +110,7 @@ fst3 (a, b, c) = a
 
 -- ARGS
 
-data Mode = Interactive | Run | Trace
+data Mode = Interactive | Run | Trace | Expand
 data Args = Args {
   mode         :: Mode,
   tulaFilePath :: String,
@@ -127,5 +131,14 @@ parseArgs args = if length args < 2 then Left $ "Missing args\n" ++ usage else d
     parseMode "run"   = return Run
     parseMode "trace" = return Trace
     parseMode "debug" = return Interactive
+    parseMode "expand" = return Expand
     parseMode _       = Left "first argument must be mode"
 usage = "USAGE:\n" ++ "<program> { run | trace | debug } <path_to_source> [path_to_tape]"
+
+expand :: TulaState -> [TulaStatement]
+expand state = case res of
+  Right stmts -> stmts
+  Left e -> trace e []
+  where
+    res = fst $ runState (runExceptT expandProgram) state
+

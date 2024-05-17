@@ -1,4 +1,4 @@
-module TulaLexer (TulaTape(..), parseProgram, TulaProgram(..), TulaStatement(..), TulaCase(..), lexToken, emptyState, TulaDirection(TRight, TLeft), LexState(..), parseCase, TulaFor(..), TulaSet(..), statementIsExpression, runParser, runLexer, TulaAtom(..), lexTulaIdentifier, lexTulaLiteral, lexAtom, Lexer, TulaIdentifier(..), TulaLiteral(..), parseTapeDeclaration, parseTapeFile, parseInterpreterFlags) where
+module TulaLexer (TulaTape(..), parseProgram, TulaProgram(..), TulaStatement(..), TulaCase(..), lexToken, emptyState, TulaDirection(TRight, TLeft), LexState(..), parseCase, TulaFor(..), TulaSet(..), statementIsExpression, runParser, runLexer, TulaAtom(..), lexTulaIdentifier, lexTulaLiteral, lexAtom, Lexer, TulaIdentifier(..), TulaLiteral(..), parseTapeDeclaration, parseTapeFile, parseInterpreterFlags, ShowSource(showSource)) where
 
 import Data.Char (isSpace)
 import Control.Monad.Trans.State (StateT (runStateT), modify, state, get, execState, execStateT, put)
@@ -72,6 +72,18 @@ data TulaFor = TulaFor {
 
 newtype TulaTape = TulaTape [TulaAtom]
   deriving Show
+
+class ShowSource a where
+  showSource :: a -> String
+
+instance ShowSource TulaStatement where
+  showSource (TStmtSet (TulaSet name symbols)) = "let " ++ name ++ " { " ++ (unwords $ map show symbols) ++ " }"
+  showSource (TStmtFor _) = "Show Statement For is not implemented"
+  showSource (TStmtCase (TulaCase state read write dir newState _ )) = 
+    unwords $ ["case", show state, show read, show write, showArrow dir, show newState ]
+    where
+      showArrow TLeft = "<-"
+      showArrow TRight = "->"
 
 -- state monad, result is Lexem, state is LexData
 
